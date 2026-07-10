@@ -540,7 +540,7 @@ var REQUIREMENTS = {
         relaxIfInversions: false
     },
 
-    // lIM Launched Coaster
+    // LIM Launched Coaster
     90: {
         dropHeight: 10,
         maxSpeed: 22,
@@ -655,6 +655,78 @@ var REQUIREMENTS = {
 
 }
 
+function countInversions(ride) {
+    if (!ride.stations || ride.stations.length === 0) {
+        return 0;
+    }
+
+    var start = ride.stations[0].start;
+    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32));
+
+    var elementIndex = -1;
+    for (var i = 0; i < tile.elements.length; i++) {
+        var el = tile.elements[i];
+        if (el.type === "track" && el.ride === ride.id && el.baseZ === start.z) {
+            elementIndex = i;
+            break;
+        }
+    }
+    if (elementIndex === -1) {
+        return 0;
+    }
+
+    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+    if (!iterator) {
+        return 0;
+    }
+
+    function samePosition(a, b) {
+        return a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction;
+    }
+
+    var startPos = iterator.position;
+    var count = 0;
+    var maxIterations = 1000;
+    var loopedBackToStart = false;
+
+    if (iterator.segment && iterator.segment.countsAsInversion) {
+        count++;
+    }
+
+    while (maxIterations-- > 0) {
+        if (!iterator.next()) {
+            break; // dead end - reached the far end of a shuttle-style layout
+        }
+        if (samePosition(iterator.position, startPos)) {
+            loopedBackToStart = true;
+            break; // back at the station - full circuit covered
+        }
+        if (iterator.segment && iterator.segment.countsAsInversion) {
+            count++;
+        }
+    }
+
+    if (!loopedBackToStart) {
+        // Shuttle-style layout: the track behind the station (e.g. a launch
+        // track with inline twists) is a separate branch that forward
+        // iteration never reaches, so walk backwards from the station too.
+        var backIterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+        if (backIterator) {
+            maxIterations = 1000;
+            while (maxIterations-- > 0 && backIterator.previous()) {
+                if (samePosition(backIterator.position, startPos)) {
+                    break;
+                }
+                if (backIterator.segment && backIterator.segment.countsAsInversion) {
+                    count++;
+                }
+            }
+        }
+    }
+
+    return count;
+}
+
 function checkRideWindow() {
 
     var rideId = null
@@ -679,6 +751,7 @@ function onRideSelectionChanged(rideId) {
 
         var ride = map.getRide(rideId)
         var requirements = REQUIREMENTS[ride.type]
+        var inversions = countInversions(ride)
 
         console.log(ride.name + ':')
         console.log(ride.maxSpeed ? "Max Speed: " + ride.maxSpeed + " mph" : "This ride has not finished testing yet, or is a ride type where speed is not calculated")
@@ -687,23 +760,28 @@ function onRideSelectionChanged(rideId) {
         console.log(ride.maxLateralGs ? "Max Lateral G's: " + ride.maxLateralGs : "This ride has not finished testing yet, or is a ride type where G-forces are not calculated")
         console.log(ride.numDrops ? "Drops: " + ride.numDrops : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
         console.log(ride.highestDropHeight ? "Highest Drop: " + context.formatString('{HEIGHT}', ride.highestDropHeight) : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
-        console.log(ride.inversions ? "Inversions: " + ride.inversions : "This ride has not finished testing yet, or is a ride type with no inversions")
+        console.log("Inversions: " + inversions)
 
         console.log("")
         console.log("Requirements:")
-        console.log(requirements ? ride.maxSpeed >= requirements.maxSpeed ? "Max speed requirement passed" : "Max speed requirement failed" : "This ride type does not have a max speed requirement")
-        console.log(requirements ? ride.rideLength >= requirements.rideLength ? "Length requirement passed" : "Length requirement failed" : "This ride type does not have a length requirement")
-        console.log(requirements ? ride.maxNegativeVerticalGs >= requirements.negativeGs ? "Negative G requirement passed" : "Negative G requirement failed" : "This ride type does not have a negative G-force requirement")
-        console.log(requirements ? ride.max >= requirements.lateralGs ? "Lateral G requirement passed" : "Lateral G requirement failed" : "This ride type does not have a lateral G-force requirement")
-        console.log(requirements ? ride.numDrops >= requirements.numDrops ? "Number of drops requirement passed" : "Number of drops requirement failed" : "This ride type does not have a drop number requirement")
-        console.log(requirements ? ride.highestDropHeight >= requirements.dropHeight ? "Drop height requirement passed" : "Drop height requirement failed" : "This ride type does not have a drop height requirement")
-        
-        
+        console.log(requirements.maxSpeed ? ride.maxSpeed >= requirements.maxSpeed ? "Max speed requirement passed" : "Max speed requirement failed" : "This ride type does not have a max speed requirement")
+        if (ride.stations.length == 1) {
+            console.log(requirements.length ? ride.rideLength >= requirements.length ? "Length requirement passed" : "Length requirement failed" : "This ride type does not have a length requirement")
+        }
+        console.log(requirements.negativeGs ? ride.maxNegativeVerticalGs <= requirements.negativeGs ? "Negative G requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Negative G requirement would fail, but is nullified by inversion(s)" : "Negative G requirement failed" : "This ride type does not have a negative G-force requirement")
+        console.log(requirements.lateralGs ? ride.maxLateralGs >= requirements.lateralGs ? "Lateral G requirement passed" : "Lateral G requirement failed" : "This ride type does not have a lateral G-force requirement")
+        console.log(requirements.numDrops ? ride.numDrops >= requirements.numDrops ? "Number of drops requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Number of drops requirement would fail, but is nullified by inversion(s)" : "Number of drops requirement failed" : "This ride type does not have a drop number requirement")
+        console.log(requirements.dropHeight ? ride.highestDropHeight >= requirements.dropHeight ? "Drop height requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Drop height requirement would fail, but is nullified by inversion(s)" : "Drop height requirement failed" : "This ride type does not have a drop height requirement")
+        console.log(requirements.inversions ? inversions >= requirements.inversions ? "Inversion requirement passed" : "Inversion requirement failed" : "This ride type does not have an inversion requirement")
 
-        if (rideId === 65) {
+        if (ride.type == 67) {
+            console.log("Note that mini golf courses must have at least 1 hole")
+        }
+
+        if (ride.type == 65) {
             console.log("Note that the reverser coaster must also have at least 1 reverser piece")
         }
-        if (rideId === 74) {
+        if (ride.type == 74) {
             console.log("Note that the water coaster must also have at least 1 water piece")
         }
 
@@ -729,6 +807,6 @@ registerPlugin({
 // Only check first length number of rides with multiple stations
 // Imperial/metric toggle for max speed
 // Display "Drops: 0" instead of "not calculated" for rides that are capable ofr drops but don't have any
-// Check if stats pass requirements
 // Display "does not have this stat requirement" instead of "undefined"
 // Plugin window to select ride
+// Count inversions twice on shuttle coasters
