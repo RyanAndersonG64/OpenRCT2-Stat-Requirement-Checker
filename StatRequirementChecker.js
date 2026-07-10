@@ -655,6 +655,55 @@ var REQUIREMENTS = {
 
 }
 
+function measureFirstLeg(ride) {
+    if (!ride.stations || ride.stations.length < 2) {
+        return 0;
+    }
+
+    var start = ride.stations[0].start;
+    var end = ride.stations[1].start;
+
+    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32));
+
+    var elementIndex = -1;
+    for (var i = 0; i < tile.elements.length; i++) {
+        var el = tile.elements[i];
+        if (el.type === "track" && el.ride === ride.id && el.baseZ === start.z) {
+            elementIndex = i;
+            break;
+        }
+    }
+    if (elementIndex === -1) {
+        return 0;
+    }
+
+    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+    if (!iterator) {
+        return 0;
+    }
+
+    var startPos = iterator.position;
+    var maxIterations = 1000;
+
+    while (maxIterations-- > 0) {
+        if (iterator.position.x === end.x && iterator.position.y === end.y && iterator.position.z === end.z) {
+            console.log("new station reached");
+            return 0;
+        }
+        if (!iterator.next()) {
+            break; // dead end before reaching the next station
+        }
+    }
+
+    return 0;
+
+
+
+
+
+    return 0;
+}
+
 function countInversions(ride) {
     if (!ride.stations || ride.stations.length === 0) {
         return 0;
@@ -767,6 +816,9 @@ function onRideSelectionChanged(rideId) {
         console.log(requirements.maxSpeed ? ride.maxSpeed >= requirements.maxSpeed ? "Max speed requirement passed" : "Max speed requirement failed" : "This ride type does not have a max speed requirement")
         if (ride.stations.length == 1) {
             console.log(requirements.length ? ride.rideLength >= requirements.length ? "Length requirement passed" : "Length requirement failed" : "This ride type does not have a length requirement")
+        }
+        else if (ride.stations.length > 1) {
+            measureFirstLeg(ride)
         }
         console.log(requirements.negativeGs ? ride.maxNegativeVerticalGs <= requirements.negativeGs ? "Negative G requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Negative G requirement would fail, but is nullified by inversion(s)" : "Negative G requirement failed" : "This ride type does not have a negative G-force requirement")
         console.log(requirements.lateralGs ? ride.maxLateralGs >= requirements.lateralGs ? "Lateral G requirement passed" : "Lateral G requirement failed" : "This ride type does not have a lateral G-force requirement")
