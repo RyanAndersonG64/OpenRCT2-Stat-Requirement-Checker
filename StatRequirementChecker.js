@@ -52,12 +52,14 @@ var REQUIREMENTS = {
 
     // Miniature Railroad
     5: {
-
+        length: 200,
+        relaxIfInversions: false
     },
 
     // Monorail
     6: {
-
+        length: 170,
+        relaxIfInversions: false
     },
 
     // Mini Suspended Coaster
@@ -97,7 +99,8 @@ var REQUIREMENTS = {
 
     // Car Ride
     11: {
-
+        length: 200,
+        relaxIfInversions: false
     },
 
     // Launched Freefall
@@ -129,7 +132,10 @@ var REQUIREMENTS = {
 
     // Dingy Slide
     16: {
-
+        dropHeight: 12,
+        maxSpeed: 15,
+        length: 140,
+        relaxIfInversions: false
     },
 
     // Mine Train Coaster
@@ -144,7 +150,9 @@ var REQUIREMENTS = {
 
     // Chairlift
     18: {
-
+        length: 150,
+        relaxIfInversions: false
+        // also needs at least 2 stations
     },
 
     // Corkscrew Coaster
@@ -173,12 +181,15 @@ var REQUIREMENTS = {
 
     // Log Flume
     23: {
-
+        dropHeight: 6,
+        relaxIfInversions: false
     },
 
     // River Rapids
     24: {
-
+        dropHeight: 2,
+        length: 200,
+        relaxIfInversions: false
     },
 
     // Bumper Cars
@@ -298,7 +309,8 @@ var REQUIREMENTS = {
 
     // Ghost Train
     50: {
-
+        length: 180,
+        relaxIfInversions: false
     },
 
     // Twister Coaster
@@ -384,12 +396,14 @@ var REQUIREMENTS = {
 
     // Splash Boats
     60: {
-
+        dropHeight: 6,
+        relaxIfInversions: false
     },
 
     // Mini Helikipoters
     61: {
-
+        length: 160,
+        relaxIfInversions: false
     },
 
     // Lay Down Coaster
@@ -403,7 +417,8 @@ var REQUIREMENTS = {
 
     // Suspended Monorail
     63: {
-
+        length: 170,
+        relaxIfInversions: false
     },
 
     // Lay Down Coaster Alt
@@ -417,10 +432,10 @@ var REQUIREMENTS = {
 
     // Reverser Coaster
     65: {
-        // also requires >=1 reversal; not exposed by the plugin API
         length: 200,
         numDrops: 2,
         relaxIfInversions: false
+        // also needs at least one reverser piece
     },
 
     // Heartline Twister Coaster
@@ -432,7 +447,7 @@ var REQUIREMENTS = {
 
     // Mini Golf
     67: {
-
+        // needs at least 1 hole
     },
 
     // Giga Coaster
@@ -461,7 +476,8 @@ var REQUIREMENTS = {
 
     /// Monorail Cycles
     72: {
-
+        length: 140,
+        relaxIfInversions: false
     },
 
     // Compact Inverted Coaster
@@ -474,11 +490,11 @@ var REQUIREMENTS = {
 
     // Water Coaster
     74: {
-        // also requires a splashdown track piece; not exposed by the plugin API
         dropHeight: 8,
         maxSpeed: 15,
         numDrops: 1,
         relaxIfInversions: false
+        // also needs at least one water piece
     },
 
     // Air-Powered Coaster
@@ -569,7 +585,8 @@ var REQUIREMENTS = {
 
     // Monster Trucks
     93: {
-
+        length: 200,
+        relaxIfInversions: false
     },
 
     // Spinning Wild Mouse
@@ -865,8 +882,12 @@ function onRideSelectionChanged(rideId) {
         console.log(requirements.dropHeight ? ride.highestDropHeight >= requirements.dropHeight ? "Drop height requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Drop height requirement would fail, but is nullified by inversion(s)" : "Drop height requirement failed" : "This ride type does not have a drop height requirement")
         console.log(requirements.inversions ? inversions >= requirements.inversions ? "Inversion requirement passed" : "Inversion requirement failed" : "This ride type does not have an inversion requirement")
 
+        if (ride.type == 18) {
+            console.log("Note that the chairlift must also have at least 2 stations")
+        }
+
         if (ride.type == 67) {
-            console.log("Note that mini golf courses must have at least 1 hole")
+            console.log("Note that the mini golf must have at least 1 hole")
         }
 
         if (ride.type == 65) {
@@ -895,7 +916,7 @@ registerPlugin({
 })
 
 // TO DO:
-// Display "does not have this stat requirement" instead of "undefined"
 // Plugin window to select ride
 // Imperial/metric toggle for max speed
+// Possibly check unsheltered track requirement
 // Count inversions twice on shuttle coasters
