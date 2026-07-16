@@ -518,7 +518,7 @@ var REQUIREMENTS = {
 
     },
 
-    // Inverted ImpulseCoaster
+    // Inverted Impulse Coaster
     86: {
         dropHeight: 20,
         maxSpeed: 22,
@@ -655,103 +655,138 @@ var REQUIREMENTS = {
 
 }
 
+function getBuiltStations(ride) {
+    var result = []
+    for (var i = 0; i < ride.stations.length; i++) {
+        if (ride.stations[i].start !== null) {
+            result.push(ride.stations[i])
+        }
+    }
+    return result
+}
+
 function measureFirstLeg(ride) {
-    if (!ride.stations || ride.stations.length < 2) {
-        return 0;
+    var stations = getBuiltStations(ride)
+    if (stations.length < 2) {
+        return 0
     }
 
-    var start = ride.stations[0].start;
-    var end = ride.stations[1].start;
+    var start = stations[0].start
 
-    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32));
+    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32))
 
-    var elementIndex = -1;
+    var elementIndex = -1
     for (var i = 0; i < tile.elements.length; i++) {
-        var el = tile.elements[i];
+        var el = tile.elements[i]
         if (el.type === "track" && el.ride === ride.id && el.baseZ === start.z) {
-            elementIndex = i;
-            break;
+            elementIndex = i
+            break
         }
     }
     if (elementIndex === -1) {
-        return 0;
+        return 0
     }
 
-    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex)
     if (!iterator) {
-        return 0;
+        return 0
     }
 
-    var startPos = iterator.position;
-    var maxIterations = 1000;
+    function samePosition(a, b) {
+        return a.x === b.x && a.y === b.y && a.z === b.z
+    }
+
+    function isAtAnyStation(pos) {
+        for (var i = 0; i < stations.length; i++) {
+            if (samePosition(pos, stations[i].start)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    var maxIterations = 1000
+    var segmentSum = 0
+    var firstLeg = 0
+    var legsRecorded = 0
+    var legsNeeded = stations.length
 
     while (maxIterations-- > 0) {
-        if (iterator.position.x === end.x && iterator.position.y === end.y && iterator.position.z === end.z) {
-            console.log("new station reached");
-            return 0;
-        }
+        segmentSum += iterator.segment.length
+
         if (!iterator.next()) {
-            break; // dead end before reaching the next station
+            break // dead end - shouldn't normally happen before legsNeeded is reached
+        }
+
+        // Only check the position we just moved to, never the starting tile
+        // itself, otherwise station 0's own position would falsely count
+        // as "arrived" on the very first iteration.
+        if (isAtAnyStation(iterator.position)) {
+            legsRecorded++
+            if (legsRecorded === 1) {
+                firstLeg = segmentSum
+            }
+            if (legsRecorded >= legsNeeded) {
+                break // recorded one leg per station - the whole circuit/bounce is covered
+            }
         }
     }
 
-    return 0;
+    if (segmentSum === 0) {
+        return 0
+    }
 
-
-
-
-
-    return 0;
+    return ride.rideLength * (firstLeg / segmentSum)
 }
 
 function countInversions(ride) {
     if (!ride.stations || ride.stations.length === 0) {
-        return 0;
+        return 0
     }
 
-    var start = ride.stations[0].start;
-    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32));
+    var start = ride.stations[0].start
+    var tile = map.getTile(Math.floor(start.x / 32), Math.floor(start.y / 32))
 
-    var elementIndex = -1;
+    var elementIndex = -1
     for (var i = 0; i < tile.elements.length; i++) {
-        var el = tile.elements[i];
+        var el = tile.elements[i]
         if (el.type === "track" && el.ride === ride.id && el.baseZ === start.z) {
-            elementIndex = i;
-            break;
+            elementIndex = i
+            break
         }
     }
     if (elementIndex === -1) {
-        return 0;
+        return 0
     }
 
-    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+    var iterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex)
     if (!iterator) {
-        return 0;
+        return 0
     }
 
     function samePosition(a, b) {
-        return a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction;
+        return a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction
     }
 
-    var startPos = iterator.position;
-    var count = 0;
-    var maxIterations = 1000;
-    var loopedBackToStart = false;
+    var startPos = iterator.position
+    var count = 0
+    var maxIterations = 1000
+    var loopedBackToStart = false
 
     if (iterator.segment && iterator.segment.countsAsInversion) {
-        count++;
+        count++
     }
 
     while (maxIterations-- > 0) {
         if (!iterator.next()) {
-            break; // dead end - reached the far end of a shuttle-style layout
+            break // dead end - reached the far end of a shuttle-style layout
         }
         if (samePosition(iterator.position, startPos)) {
-            loopedBackToStart = true;
-            break; // back at the station - full circuit covered
+            loopedBackToStart = true
+            break // back at the station - full circuit covered
         }
         if (iterator.segment && iterator.segment.countsAsInversion) {
-            count++;
+            count++
         }
     }
 
@@ -759,21 +794,21 @@ function countInversions(ride) {
         // Shuttle-style layout: the track behind the station (e.g. a launch
         // track with inline twists) is a separate branch that forward
         // iteration never reaches, so walk backwards from the station too.
-        var backIterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex);
+        var backIterator = map.getTrackIterator({ x: start.x, y: start.y }, elementIndex)
         if (backIterator) {
-            maxIterations = 1000;
+            maxIterations = 1000
             while (maxIterations-- > 0 && backIterator.previous()) {
                 if (samePosition(backIterator.position, startPos)) {
-                    break;
+                    break
                 }
                 if (backIterator.segment && backIterator.segment.countsAsInversion) {
-                    count++;
+                    count++
                 }
             }
         }
     }
 
-    return count;
+    return count
 }
 
 function checkRideWindow() {
@@ -784,7 +819,7 @@ function checkRideWindow() {
         var w = ui.getWindow(i)
         if (w.classification === RIDE_WINDOW_CLASS) {
             rideId = w.number
-            break;
+            break
         }
     }
 
@@ -799,26 +834,30 @@ function onRideSelectionChanged(rideId) {
     if (rideId !== null) {
 
         var ride = map.getRide(rideId)
-        var requirements = REQUIREMENTS[ride.type]
+        var isTested = (ride.flags & (1 << 1)) !== 0
+        var requirements = REQUIREMENTS[ride.type] || {}
+
         var inversions = countInversions(ride)
 
         console.log(ride.name + ':')
-        console.log(ride.maxSpeed ? "Max Speed: " + ride.maxSpeed + " mph" : "This ride has not finished testing yet, or is a ride type where speed is not calculated")
-        console.log(ride.rideLength ? "Length: " + context.formatString('{LENGTH}', ride.rideLength) : "This ride has not finished testing yet, or is a ride type where length is not calculated")
-        console.log(ride.maxNegativeVerticalGs ? "Max Negative Vertical G's: " + ride.maxNegativeVerticalGs : "This ride has not finished testing yet, or is a ride type where G-forces are not calculated")
-        console.log(ride.maxLateralGs ? "Max Lateral G's: " + ride.maxLateralGs : "This ride has not finished testing yet, or is a ride type where G-forces are not calculated")
-        console.log(ride.numDrops ? "Drops: " + ride.numDrops : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
-        console.log(ride.highestDropHeight ? "Highest Drop: " + context.formatString('{HEIGHT}', ride.highestDropHeight) : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
+        console.log(isTested ? "Max Speed: " + ride.maxSpeed + " mph" : "This ride has not finished testing yet, or is a ride type where speed is not calculated")
+        console.log(isTested ? "Length: " + context.formatString('{LENGTH}', ride.rideLength) : "This ride has not finished testing yet, or is a ride type where length is not calculated")
+        console.log(isTested ? "Max Negative Vertical G's: " + ride.maxNegativeVerticalGs : "This ride has not finished testing yet, or is a ride type where G-forces are not calculated")
+        console.log(isTested ? "Max Lateral G's: " + ride.maxLateralGs : "This ride has not finished testing yet, or is a ride type where G-forces are not calculated")
+        console.log(isTested ? "Drops: " + ride.numDrops : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
+        console.log(isTested ? "Highest Drop: " + context.formatString('{HEIGHT}', ride.highestDropHeight) : "This ride has not finished testing yet, or is a ride type where drops are not calculated")
         console.log("Inversions: " + inversions)
 
         console.log("")
         console.log("Requirements:")
         console.log(requirements.maxSpeed ? ride.maxSpeed >= requirements.maxSpeed ? "Max speed requirement passed" : "Max speed requirement failed" : "This ride type does not have a max speed requirement")
-        if (ride.stations.length == 1) {
+        if (getBuiltStations(ride).length == 1) {
             console.log(requirements.length ? ride.rideLength >= requirements.length ? "Length requirement passed" : "Length requirement failed" : "This ride type does not have a length requirement")
         }
-        else if (ride.stations.length > 1) {
-            measureFirstLeg(ride)
+        else if (getBuiltStations(ride).length > 1) {
+            var firstLegLength = measureFirstLeg(ride)
+            console.log("First leg length: ≈ " + context.formatString('{LENGTH}', firstLegLength))
+            console.log(requirements.length ? firstLegLength >= requirements.length ? "Length requirement passed (estimated)" : "Length requirement failed (estimated)" : "This ride type does not have a length requirement")
         }
         console.log(requirements.negativeGs ? ride.maxNegativeVerticalGs <= requirements.negativeGs ? "Negative G requirement passed" : requirements.relaxIfInversions && inversions > 0 ? "Negative G requirement would fail, but is nullified by inversion(s)" : "Negative G requirement failed" : "This ride type does not have a negative G-force requirement")
         console.log(requirements.lateralGs ? ride.maxLateralGs >= requirements.lateralGs ? "Lateral G requirement passed" : "Lateral G requirement failed" : "This ride type does not have a lateral G-force requirement")
@@ -853,12 +892,10 @@ registerPlugin({
     authors: ['Gutnis'],
     type: 'local',
     main: main
-});
+})
 
 // TO DO:
-// Only check first length number of rides with multiple stations
-// Imperial/metric toggle for max speed
-// Display "Drops: 0" instead of "not calculated" for rides that are capable ofr drops but don't have any
 // Display "does not have this stat requirement" instead of "undefined"
 // Plugin window to select ride
+// Imperial/metric toggle for max speed
 // Count inversions twice on shuttle coasters
