@@ -900,25 +900,159 @@ function onRideSelectionChanged(rideId) {
     }
 }
 
-function statRequirementWindow () {
+function colourFor(requirementValue, passed, relaxIfInversions, inversions) {
+
+    // black text for stat requirements not used by ride type
+    if (requirementValue === undefined) return "{BLACK}"
+    // green for stat requirements that the ride passes
+    if (passed) return "{GREEN}"
+    // yellow for requirements that the ride fails, but are being nullified by the presence of an inversion
+    if (!passed && relaxIfInversions && inversions > 0) return "{YELLOW}"
+    // red for failed requirements
+    return "{RED}"
+}
+
+function statRequirementWindow() {
+
+    var existingWindow = ui.getWindow("stat_requirements");
+    if (existingWindow) {
+        existingWindow.bringToFront();
+        return;
+    }
+
+    var rides = map.rides.filter(function (r) { return r.classification === "ride" })
+    var selectedRide = null
+    var uiWindow = null
+
+    function refreshLabels() {
+        if (!uiWindow || selectedRide === null) return
+
+        var isTested = (selectedRide.flags & (1 << 1)) !== 0
+        var requirements = REQUIREMENTS[selectedRide.type] || {}
+        var inversions = countInversions(selectedRide)
+
+        var maxSpeedLabel = uiWindow.findWidget('max-speed-label')
+        maxSpeedLabel.text = isTested ? colourFor(requirements.maxSpeed, selectedRide.maxSpeed >= requirements.maxSpeed, requirements.relaxIfInversions, inversions) + "Max Speed: " + selectedRide.maxSpeed : selectedRide.name + " has not finished testing yet."
+        var lengthLabel = uiWindow.findWidget('length-label')
+        lengthLabel.text = isTested ? colourFor(requirements.length, selectedRide.rideLength >= requirements.length, requirements.relaxIfInversions, inversions) + "Length: " + selectedRide.rideLength : ""
+        var maxNegativeGLabel = uiWindow.findWidget('max-negative-g-label')
+        maxNegativeGLabel.text = isTested ? colourFor(requirements.negativeGs, selectedRide.maxNegativeVerticalGs <= requirements.negativeGs, requirements.relaxIfInversions, inversions) + "Max Negative Gs: " + selectedRide.maxNegativeVerticalGs : ""
+        var maxLateralGLabel = uiWindow.findWidget('max-lateral-g-label')
+        maxLateralGLabel.text = isTested ? colourFor(requirements.lateralGs, selectedRide.maxLateralGs >= requirements.lateralGs, requirements.relaxIfInversions, inversions) + "Max Lateral Gs: " + selectedRide.maxLateralGs : ""
+        var dropNumberLabel = uiWindow.findWidget('number-of-drops-label')
+        dropNumberLabel.text = isTested ? colourFor(requirements.numDrops, selectedRide.numDrops >= requirements.numDrops, requirements.relaxIfInversions, inversions) + "Drops: " + selectedRide.numDrops : ""
+        var dropHeightLabel = uiWindow.findWidget('highest-drop-label')
+        dropHeightLabel.text = isTested ? colourFor(requirements.dropHeight, selectedRide.highestDropHeight >= requirements.dropHeight, requirements.relaxIfInversions, inversions) + "Highest Drop: " + selectedRide.highestDropHeight : ""
+        var inversionsLabel = uiWindow.findWidget('inversions-label')
+        inversionsLabel.text = isTested ? colourFor(requirements.inversions, inversions >= requirements.inversions, requirements.relaxIfInversions, inversions) + "Inversions: " + inversions : ""
+    }
+
 
     var desc = {
-        classification : "stat-requirements",
+        classification: "stat_requirements",
         width: 240,
         height: 220,
         title: "Stat Requirement Checker",
+        onUpdate: refreshLabels,
         widgets: [
-            
+            {
+                name: 'ride_selector',
+                type: 'dropdown',
+                x: 5,
+                y: 20,
+                width: 230,
+                height: 14,
+                items: ["Select a ride"].concat(rides.map(function (r) { return r.name })),
+                selectedIndex: 0,
+                onChange: function (index) {
+                    selectedRide = index === 0 ? null : rides[index - 1]
+                    refreshLabels()
+                }
+            },
+            {
+                name: 'max-speed-label',
+                type: 'label',
+                x: 5,
+                y: 100,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'length-label',
+                type: 'label',
+                x: 5,
+                y: 90,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'max-negative-g-label',
+                type: 'label',
+                x: 5,
+                y: 80,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'max-lateral-g-label',
+                type: 'label',
+                x: 5,
+                y: 70,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'number-of-drops-label',
+                type: 'label',
+                x: 5,
+                y: 60,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'highest-drop-label',
+                type: 'label',
+                x: 5,
+                y: 50,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
+            {
+                name: 'inversions-label',
+                type: 'label',
+                x: 5,
+                y: 40,
+                width: 200,
+                height: 14,
+                textAlign: 'left',
+                text: "",
+            },
         ],
     }
 
-    ui.openWindow(desc)
+    uiWindow = ui.openWindow(desc)
 }
 
 function main() {
     context.setInterval(checkRideWindow, 250)
 
-    
+    if (typeof ui !== 'undefined') {
+        ui.registerMenuItem("Stat Requirement Checker", function () {
+            statRequirementWindow()
+        })
+    }
 }
 
 registerPlugin({
@@ -933,7 +1067,6 @@ registerPlugin({
 })
 
 // TO DO:
-// Plugin window to select ride
 // Imperial/metric toggle for max speed
 // refactor stat display/log lines into a map
 // Possibly check unsheltered track requirement
