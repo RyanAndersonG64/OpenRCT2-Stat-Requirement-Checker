@@ -969,6 +969,16 @@ function statRequirementWindow() {
                     refreshLabels()
                 }
             },
+            // {
+            //     name: 'ride-type-label',
+            //     type: 'label',
+            //     x: 5,
+            //     y: 120,
+            //     width: 200,
+            //     height: 14,
+            //     textAlign: 'left',
+            //     text: selectedRide.rideType,
+            // },
             {
                 name: 'max-speed-label',
                 type: 'label',
