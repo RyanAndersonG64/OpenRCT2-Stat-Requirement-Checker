@@ -900,8 +900,25 @@ function onRideSelectionChanged(rideId) {
     }
 }
 
+function statRequirementWindow () {
+
+    var desc = {
+        classification : "stat-requirements",
+        width: 240,
+        height: 220,
+        title: "Stat Requirement Checker",
+        widgets: [
+            
+        ],
+    }
+
+    ui.openWindow(desc)
+}
+
 function main() {
     context.setInterval(checkRideWindow, 250)
+
+    
 }
 
 registerPlugin({
@@ -918,5 +935,6 @@ registerPlugin({
 // TO DO:
 // Plugin window to select ride
 // Imperial/metric toggle for max speed
+// refactor stat display/log lines into a map
 // Possibly check unsheltered track requirement
 // Count inversions twice on shuttle coasters
