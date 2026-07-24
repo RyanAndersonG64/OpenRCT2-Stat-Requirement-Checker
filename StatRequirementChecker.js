@@ -924,17 +924,66 @@ function statRequirementWindow() {
     var selectedRide = null
     var uiWindow = null
 
+    var cachedLengthRideId = null
+    var cachedLengthStationCount = null
+    var cachedFirstLegLength = 0
+
+    function getFirstLegLength(ride) {
+        var stationCount = getBuiltStations(ride).length
+        if (ride.id !== cachedLengthRideId || stationCount !== cachedLengthStationCount) {
+            cachedLengthRideId = ride.id
+            cachedLengthStationCount = stationCount
+            cachedFirstLegLength = measureFirstLeg(ride)
+        }
+        return cachedFirstLegLength
+    }
+
+    var cachedInversionsRideId = null
+    var cachedInversionsCount = 0
+
+    function getInversions(ride) {
+        if (ride.id !== cachedInversionsRideId) {
+            cachedInversionsRideId = ride.id
+            cachedInversionsCount = countInversions(ride)
+        }
+        return cachedInversionsCount
+    }
+
+    // Track construction fires these GameActions; invalidate both caches so the
+    // next refresh recomputes rather than showing a stale length/inversion count.
+    // trackremove doesn't expose which ride was affected, so this invalidates
+    // unconditionally rather than trying to filter - the caches above already
+    // do the real per-ride filtering lazily, next time they're read.
+    var constructionHook = context.subscribe("action.execute", function (e) {
+        if (e.action === "trackplace" || e.action === "trackremove") {
+            cachedLengthRideId = null
+            cachedInversionsRideId = null
+        }
+    })
+
     function refreshLabels() {
         if (!uiWindow || selectedRide === null) return
 
         var isTested = (selectedRide.flags & (1 << 1)) !== 0
         var requirements = REQUIREMENTS[selectedRide.type] || {}
-        var inversions = countInversions(selectedRide)
+        var inversions = getInversions(selectedRide)
 
         var maxSpeedLabel = uiWindow.findWidget('max-speed-label')
-        maxSpeedLabel.text = isTested ? colourFor(requirements.maxSpeed, selectedRide.maxSpeed >= requirements.maxSpeed, requirements.relaxIfInversions, inversions) + "Max Speed: " + selectedRide.maxSpeed : selectedRide.name + " has not finished testing yet."
+        maxSpeedLabel.text = isTested ? colourFor(requirements.maxSpeed, selectedRide.maxSpeed >= requirements.maxSpeed, requirements.relaxIfInversions, inversions) + "Max Speed: " + context.formatString('{VELOCITY}', selectedRide.maxSpeed) : selectedRide.name + " has not finished testing yet."
+        
         var lengthLabel = uiWindow.findWidget('length-label')
-        lengthLabel.text = isTested ? colourFor(requirements.length, selectedRide.rideLength >= requirements.length, requirements.relaxIfInversions, inversions) + "Length: " + selectedRide.rideLength : ""
+        var stations = getBuiltStations(selectedRide).length
+        if (stations == 1) {
+            lengthLabel.text = isTested ? colourFor(requirements.length, selectedRide.rideLength >= requirements.length, requirements.relaxIfInversions, inversions) + "Length: " + context.formatString('{LENGTH}', selectedRide.rideLength) : ""
+        }
+        else if (stations > 1 && isTested) {
+            var firstLegLength = getFirstLegLength(selectedRide)
+            lengthLabel.text = colourFor(requirements.length, firstLegLength >= requirements.length, requirements.relaxIfInversions, inversions) + "Length: " + context.formatString('{LENGTH}', firstLegLength)
+        }
+        else if (stations > 1) {
+            lengthLabel.text = ""
+        }
+
         var maxNegativeGLabel = uiWindow.findWidget('max-negative-g-label')
         maxNegativeGLabel.text = isTested ? colourFor(requirements.negativeGs, selectedRide.maxNegativeVerticalGs <= requirements.negativeGs, requirements.relaxIfInversions, inversions) + "Max Negative Gs: " + selectedRide.maxNegativeVerticalGs : ""
         var maxLateralGLabel = uiWindow.findWidget('max-lateral-g-label')
@@ -942,7 +991,7 @@ function statRequirementWindow() {
         var dropNumberLabel = uiWindow.findWidget('number-of-drops-label')
         dropNumberLabel.text = isTested ? colourFor(requirements.numDrops, selectedRide.numDrops >= requirements.numDrops, requirements.relaxIfInversions, inversions) + "Drops: " + selectedRide.numDrops : ""
         var dropHeightLabel = uiWindow.findWidget('highest-drop-label')
-        dropHeightLabel.text = isTested ? colourFor(requirements.dropHeight, selectedRide.highestDropHeight >= requirements.dropHeight, requirements.relaxIfInversions, inversions) + "Highest Drop: " + selectedRide.highestDropHeight : ""
+        dropHeightLabel.text = isTested ? colourFor(requirements.dropHeight, selectedRide.highestDropHeight >= requirements.dropHeight, requirements.relaxIfInversions, inversions) + "Highest Drop: " + context.formatString('{HEIGHT}', selectedRide.highestDropHeight) : ""
         var inversionsLabel = uiWindow.findWidget('inversions-label')
         inversionsLabel.text = isTested ? colourFor(requirements.inversions, inversions >= requirements.inversions, requirements.relaxIfInversions, inversions) + "Inversions: " + inversions : ""
     }
@@ -954,6 +1003,9 @@ function statRequirementWindow() {
         height: 220,
         title: "Stat Requirement Checker",
         onUpdate: refreshLabels,
+        onClose: function () {
+            constructionHook.dispose()
+        },
         widgets: [
             {
                 name: 'ride_selector',
@@ -1077,7 +1129,15 @@ registerPlugin({
 })
 
 // TO DO:
-// Imperial/metric toggle for max speed
-// refactor stat display/log lines into a map
+
+// Should do:
+// Adjust window size and text spacing and stuff
+// clean up code/remove code for console logs and other unnecessary stuff
+
+// Could do:
+// List rides in alphabetical order
+// List whether ride counts for harder guest generation
+// Refactor stat display/log lines into a map if possible
+// Display ride type?
 // Possibly check unsheltered track requirement
 // Count inversions twice on shuttle coasters
